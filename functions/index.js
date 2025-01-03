@@ -3,10 +3,12 @@ import { MongoClient } from 'mongodb'
 import dotenv from 'dotenv'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
-import authMiddleware from './auth.js'
+import authMiddleware from '../auth.js'
 import cors from 'cors'
 
 import bodyParser from 'body-parser'
+import serverless from 'serverless-http';
+
 
 dotenv.config()
 
@@ -18,12 +20,13 @@ const client = new MongoClient(mongourl, {
 })
 const dbName = 'eventoz'
 const app = express()
+const router = express.Router();
 const port = process.env.PORT || 3000;
 await client.connect()
 
 
 // app.use(cors());
-app.use(cors({
+router.use(cors({
     origin: 'https://eventoz.netlify.app', // Specify your frontend domain
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true // Allow cookies or other credentials to be sent
@@ -35,7 +38,7 @@ app.use(bodyParser.json())
 
 
 // register 
-app.post("/register", async (request, response) => {
+router.post("/register", async (request, response) => {
     try {
         const hashedPassword = await bcrypt.hash(request.body.password, 10);
         const db = client.db(dbName);
@@ -70,7 +73,7 @@ app.post("/register", async (request, response) => {
 });
 
 //login
-app.post("/login", async (request, response) => {
+router.post("/login", async (request, response) => {
     try {
         const db = client.db(dbName);
         const collection = db.collection('users');
@@ -117,7 +120,7 @@ app.get('/', (req, res) => {
 })
 
 // createevent
-app.post('/createevent', authMiddleware, async (request, response) => {
+router.post('/createevent', authMiddleware, async (request, response) => {
     try {
         const userId = request.userId; // Ensure authMiddleware sets this
         const db = client.db(dbName);
@@ -145,7 +148,7 @@ app.post('/createevent', authMiddleware, async (request, response) => {
 
 
 // Fetch Events for a User
-app.get('/myevents', authMiddleware, async (request, response) => {
+router.get('/myevents', authMiddleware, async (request, response) => {
     try {
         const userId = request.userId; // Ensure authMiddleware sets this
         const db = client.db(dbName);
@@ -164,7 +167,7 @@ app.get('/myevents', authMiddleware, async (request, response) => {
 });
 
 // Endpoint to register a user for an event
-app.post('/eventregistereduser', async (request, response) => {
+router.post('/eventregistereduser', async (request, response) => {
     try {
         // const userId = request.userId; // Ensure authMiddleware sets this
         const db = client.db(dbName);
@@ -190,7 +193,7 @@ app.post('/eventregistereduser', async (request, response) => {
 });
 
 // Endpoint to get the number of registered users for a specific event
-app.get('/event/:id/registrations', async (request, response) => {
+router.get('/event/:id/registrations', async (request, response) => {
     try {
         const { id } = request.params; // Event ID (formId)
 
@@ -215,7 +218,7 @@ app.get('/event/:id/registrations', async (request, response) => {
 });
 
 // Endpoint to get the number of attended users for a specific event
-app.get('/event/:id/attended', async (request, response) => {
+router.get('/event/:id/attended', async (request, response) => {
     try {
         const { id } = request.params; // Event ID (formId)
 
@@ -241,7 +244,7 @@ app.get('/event/:id/attended', async (request, response) => {
 });
 
 // Endpoint to fetch registered users for a specific event
-app.get('/registeredusers/:formId', async (request, response) => {
+router.get('/registeredusers/:formId', async (request, response) => {
     try {
         // const userId = request.userId; // Organizer's userId
         const { formId } = request.params; // Form ID from the URL
@@ -262,7 +265,7 @@ app.get('/registeredusers/:formId', async (request, response) => {
 });
 
 // Endpoint to fetch attended users for a specific event
-app.get('/attendedusers/:formId', async (request, response) => {
+router.get('/attendedusers/:formId', async (request, response) => {
     try {
         const { formId } = request.params; // Form ID from the URL
         const db = client.db(dbName);
@@ -283,7 +286,7 @@ app.get('/attendedusers/:formId', async (request, response) => {
 
 
 // Endpoint to mark a user as attended for a specific event
-app.post('/updateAttendance', async (request, response) => {
+router.post('/updateAttendance', async (request, response) => {
     try {
         const { id } = request.body; // Expect id in the request body
 
@@ -328,18 +331,21 @@ app.post('/updateAttendance', async (request, response) => {
 
 
 
-app.listen(port, '0.0.0.0', () => {
+router.listen(port, '0.0.0.0', () => {
     console.log(`Example app listening on port ${port}`);
 });
 
 
 
 // free endpoint
-app.get("/free-endpoint", (request, response) => {
+router.get("/free-endpoint", (request, response) => {
     response.json({ message: "You are free to access me anytime" });
 });
 
 // authentication endpoint
-app.get("/auth-endpoint", authMiddleware, (request, response) => {
+router.get("/auth-endpoint", authMiddleware, (request, response) => {
     response.json({ message: "You are authorized to access me" });
 });
+
+app.use("/.netlify/functions/app", router);
+export const handler = serverless(app);
